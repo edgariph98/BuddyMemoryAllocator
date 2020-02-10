@@ -5,7 +5,6 @@ Ackerman.o: Ackerman.cpp
 
 BuddyAllocator.o : BuddyAllocator.cpp
 	g++ -c -g BuddyAllocator.cpp
-
 Main.o : Main.cpp
 	g++ -c -g Main.cpp
 

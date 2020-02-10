@@ -19,9 +19,10 @@ public:
 class LinkedList{
 	// this is a special linked list that is made out of BlockHeader s. 
 public:
-	BlockHeader* head = nullptr;		// you need a head of the list
+	BlockHeader* head = nullptr;
 public:
-	void insert (BlockHeader* b){	// adds a block to the list
+	// adds a block to the list
+	void insert (BlockHeader* b){
 		if(head == nullptr){
 			//insert the new block and call it the new head
 			head = b;
@@ -33,12 +34,14 @@ public:
 		}
 	}
 
-	void remove (BlockHeader* b){  // removes a block from the list
-		if(b == head){ //case where b is at the front
+	void remove (BlockHeader* b){ 
+		//b is head
+		if(b == head){ 
 			head = head->next;
 			return;
 		}
-		else{ //case where b is in the middle
+		//case where b is in the mid of the list
+		else{
 			BlockHeader* cur = head;
 			BlockHeader* prev = head;
 			while(cur != b && cur->next!=NULL){
@@ -70,7 +73,6 @@ private:
 	char * start;	
 	/* private function you are required to implement
 	 this will allow you and us to do unit test */
-	int freeListIndex(int length);
 	BlockHeader* getbuddy (BlockHeader * addr); 
 	// given a block address, this function returns the address of its buddy 
 	
@@ -86,6 +88,14 @@ private:
 	// splits the given block by putting a new header halfway through the block
 	// also, the original header needs to be corrected
 
+	//helper Functions
+	// gets index of a block based on its size
+public:
+	int freeListIndex(int length);
+	// removes block from FreeList
+	void removeBlock(BlockHeader* block);
+	//inserts a block to FreeList
+	void insertBlock(BlockHeader* block);
 
 public:
 	BuddyAllocator (int _basic_block_size, int _total_memory_length); 

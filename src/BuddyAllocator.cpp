@@ -22,28 +22,38 @@ BuddyAllocator::BuddyAllocator (int _basic_block_size, int _total_memory_length)
 }
 
 BuddyAllocator::~BuddyAllocator (){
-	::free(start);
+  for(int i = 0 ; i < FreeList.size();++i){
+    FreeList[i].head = nullptr;
+  }
+	std::free(start);
 }
 void* BuddyAllocator::alloc(int length) {
-  /* This preliminary implementation simply hands the call over the 
-     the C standard library! 
-     Of course this needs to be replaced by your implementation.
-  */
+  //actual size of block we need to allocate
   int rightLength = length + sizeof(BlockHeader);
+  //getting the index for the list that we need to remove a block from for allocation 
   int listIndex = freeListIndex(rightLength);
+  //cout << "List Index: " << listIndex << ", for length: " << rightLength <<  endl;
+
+  //checking if the size requested is ess than total memory size
   if(rightLength > total_memory_size){
     cout << "Size cannot be greater than total memory allocated" << endl;
     return nullptr;
   }
+  //checking if the list currently has a block available for use
   if(FreeList[listIndex].head){
     BlockHeader* b = FreeList[listIndex].head;
     //removing head from the list where it fits
     FreeList[listIndex].remove(FreeList[listIndex].head);
-    //block header allocated
     b->free = false;
+    //returning the address of pinter to free memory not address of our pointer
     return (char *)(b+1);
-  }else{
+
+  }
+  //case where the list is empty and we need to start splitting larger blocks to get our size block
+  else{
+    //serves to count how many times to backtrack and split
     int backtrack = listIndex;;
+    //finding first list with a block in it with larger size than we need
     while(FreeList[backtrack].head == nullptr){
       //checking if went to bigger size than memory size and could not find a not nullptr
       if(backtrack >= FreeList.size()){
@@ -51,7 +61,7 @@ void* BuddyAllocator::alloc(int length) {
       }
       backtrack++;
     }
-    //bactracking up to listIndex
+    //we start bactracking up to listIndex and splitting up the blocks
     while(listIndex < backtrack){
       split(FreeList[backtrack].head);
       backtrack--;
@@ -63,47 +73,48 @@ void* BuddyAllocator::alloc(int length) {
     //removing mem from linkedlist
     FreeList[listIndex].remove(FreeList[listIndex].head);
     
-    //returning the pointer blockheard plus the size of Block Header
+    //returning pointer to actual free memory
     return (char*)(mem+1);
   }
 }
+//serves to find the index could be inserted or removed based on its size
 int BuddyAllocator::freeListIndex(int length){
-  int index = log2(ceil( ((double)length) / ((double) basic_block_size) ) );
+  int index = (int)ceil(log2(ceil( (double)length / (basic_block_size) ) ));
   return index;
 }
 
 void BuddyAllocator::free(void* a) {
-    /* Same here! */
-  //address of actual block
+  //pointer of actual block
   BlockHeader* block = (BlockHeader*)((char *)a - sizeof(BlockHeader));
+  //checking if the free block is not the one conaining all the memory size
   if(block->block_size == total_memory_size){
+    block->free = true;
+    FreeList[FreeList.size()-1].insert(block);
     return;
   }
+  //repeating same process over and over
   while(1){
-    //address out of index of list
     int listIndex =  freeListIndex(block->block_size);
-    //index out of bounds
+    //checking if block size is index range of FreeList
     if(listIndex >= FreeList.size() ){
       break;
     }
     BlockHeader* buddy = getbuddy(block);
-    //removing block of +current list
-    FreeList[listIndex].remove(block);
-    //buddy is free
-    if(buddy->free){
+    //checking if buddy is free
+    if(buddy->free == true){
       FreeList[listIndex].remove(buddy);
       block = merge(block,buddy); 
-      FreeList[listIndex+1].insert(block);
-      buddy = nullptr;  
     }
     //buddy is not free
     else{
       block->free = true;
       FreeList[listIndex].insert(block);
-      buddy = nullptr;
       return;
     }
   }
+  //inserting the last merged block into freelist so it can be available to use
+  FreeList[freeListIndex(block->block_size)].insert(block);
+  block->free = true;
 }
 
 void BuddyAllocator::printlist (){
@@ -137,7 +148,7 @@ BlockHeader* BuddyAllocator::getbuddy(BlockHeader * addr){
   char* buddyAddress = start + buddyOffset;
   return (BlockHeader*) buddyAddress;
 }
-
+//checking if  two BlockHeaders are buddies
 bool BuddyAllocator::arebuddies(BlockHeader* block1, BlockHeader* block2){
   return getbuddy(block1) == block2;
 }
@@ -146,26 +157,21 @@ BlockHeader* BuddyAllocator::split (BlockHeader* block){
   //indexes of free list
   int currIndex = freeListIndex(block->block_size);
   int prevIndex =  currIndex -1;
-  //setting block to allocated and removing block from its current list
   int splitOffset = block->block_size / 2;
+  //removing  splitting block from its  current list
   FreeList[currIndex].remove(block);
   //creating the Block Header at split point of the block
   BlockHeader* halfBlock = (BlockHeader*)((char *)block + (splitOffset));
-  //updating size of block created and current block
+  //changing data members of the blocks gotten from split
   block->block_size = splitOffset;
   halfBlock->block_size = splitOffset;
-  //changing data members of the blocks
   halfBlock->free = true;
+  block->free = true;
   halfBlock->next = nullptr;
   block->next = nullptr;
-  block->free = true;
-
-  //deleting split block from free list
-  //adding split blocks to freelist at prevIndex
-  //adding halfblock
+  //inserting new blocks to its corresponding list
   FreeList[prevIndex].insert(halfBlock);
   FreeList[prevIndex].insert(block);
-  //removing split block
   return halfBlock;
 }
 
@@ -190,21 +196,3 @@ BlockHeader* BuddyAllocator::merge (BlockHeader* block1, BlockHeader* block2){
   mergedBlock->free = true;
   return mergedBlock;
 }
-
-
-
-  //removes block from FreeList
-	void BuddyAllocator::removeBlock(BlockHeader* block){
-    int index = freeListIndex(block->block_size);
-    if(index < FreeList.size() && index >= 0){
-      FreeList[index].remove(block);
-    }
-
-  }
-	//inserts a block to FreeList
-	void BuddyAllocator::insertBlock(BlockHeader* block){
-    int index = freeListIndex(block->block_size);
-    if(index < FreeList.size() && index >= 0){
-      FreeList[index].insert(block )
-    }
-  }
